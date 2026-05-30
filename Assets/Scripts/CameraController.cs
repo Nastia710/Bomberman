@@ -1,29 +1,49 @@
 using UnityEngine;
+using Unity.Netcode;
 
 namespace Bomberman
 {
     public class CameraController : MonoBehaviour
     {
         [SerializeField]
-        private BomberMan _bomberMan;
-
-        [SerializeField]
         private Transform _bottomLeftBound;
         [SerializeField]
         private Transform _topRightBound;
 
         private Camera _camera;
+        private Transform _target;
 
         private void Awake()
         {
             _camera = GetComponent<Camera>();
         }
 
-        private void Update()
+        public void SetTarget(Transform target)
         {
-            if (_bomberMan == null)
+            _target = target;
+        }
+
+        private void LateUpdate()
+        {
+            if (_target == null)
             {
-                return;
+                if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsConnectedClient)
+                {
+                    BomberMan[] players = FindObjectsByType<BomberMan>(FindObjectsSortMode.None);
+                    foreach (BomberMan p in players)
+                    {
+                        if (p.IsOwner)
+                        {
+                            _target = p.transform;
+                            break;
+                        }
+                    }
+                }
+
+                if (_target == null)
+                {
+                    return;
+                }
             }
 
             float cameraHalfHeight = _camera.orthographicSize;
@@ -34,9 +54,15 @@ namespace Bomberman
             float maxX = _topRightBound.position.x + 0.5f;
             float maxY = _topRightBound.position.y + 0.5f;
 
-            Vector3 playerPosition = _bomberMan.transform.position;
-            float x = Mathf.Clamp(playerPosition.x, minX + cameraHalfWidth, maxX - cameraHalfWidth);
-            float y = Mathf.Clamp(playerPosition.y, minY + cameraHalfHeight, maxY - cameraHalfHeight);
+            Vector3 playerPosition = _target.position;
+
+            float clampMinX = minX + cameraHalfWidth;
+            float clampMaxX = maxX - cameraHalfWidth;
+            float x = clampMinX > clampMaxX ? (minX + maxX) / 2f : Mathf.Clamp(playerPosition.x, clampMinX, clampMaxX);
+
+            float clampMinY = minY + cameraHalfHeight;
+            float clampMaxY = maxY - cameraHalfHeight;
+            float y = clampMinY > clampMaxY ? (minY + maxY) / 2f : Mathf.Clamp(playerPosition.y, clampMinY, clampMaxY);
 
             transform.position = new Vector3(x, y, transform.position.z);
         }

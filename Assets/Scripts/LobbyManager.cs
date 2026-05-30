@@ -140,9 +140,9 @@ namespace Bomberman
             _localNickname = GetNickname();
             _hostPassword = _passwordInput.text.Trim();
             PlayerName = _localNickname;
+            NetworkManager.Singleton.ConnectionApprovalCallback = OnConnectionApproval;
             NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
-            NetworkManager.Singleton.ConnectionApprovalCallback = OnConnectionApproval;
             NetworkManager.Singleton.StartHost();
             ShowLobbyPanel();
             UpdateStatusText();
@@ -174,6 +174,7 @@ namespace Bomberman
             }
 
             _startButton.interactable = false;
+            ClearLobbyPlayers();
             NetworkManager.Singleton.SceneManager.LoadScene(_gameSceneName, LoadSceneMode.Single);
         }
 
@@ -206,6 +207,13 @@ namespace Bomberman
             if (request.Payload != null)
             {
                 clientPassword = Encoding.UTF8.GetString(request.Payload);
+            }
+
+            if (request.ClientNetworkId == NetworkManager.Singleton.LocalClientId)
+            {
+                response.Approved = true;
+                response.CreatePlayerObject = false;
+                return;
             }
 
             if (!string.IsNullOrEmpty(_hostPassword))

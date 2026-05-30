@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Netcode;
 using UnityEngine;
+using TMPro;
 
 namespace Bomberman
 {
@@ -15,7 +18,7 @@ namespace Bomberman
         Detonator = 6
     }
 
-    public class BomberMan : MonoBehaviour
+    public class BomberMan : NetworkBehaviour
     {
         [SerializeField]
         private Transform _sensor;
@@ -42,6 +45,8 @@ namespace Bomberman
         private GameObject _bombPrefab;
         [SerializeField]
         private GameObject _deathEffect;
+        [SerializeField]
+        private TMP_Text _nicknameText;
 
         private bool _isButtonLeft;
         private bool _isButtonRight;
@@ -69,6 +74,26 @@ namespace Bomberman
 
         private List<Bomb> _activeBombs = new List<Bomb>();
 
+        private NetworkVariable<FixedString64Bytes> _nickname = new NetworkVariable<FixedString64Bytes>(
+            "",
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Owner);
+
+        private NetworkVariable<int> _networkDirection = new NetworkVariable<int>(
+            5,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Owner);
+
+        private NetworkVariable<bool> _networkIsMoving = new NetworkVariable<bool>(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Owner);
+
+        private NetworkVariable<bool> _networkFlipX = new NetworkVariable<bool>(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Owner);
+
         public static event Action BombPlacedEvent;
 
         private void Awake()
@@ -77,24 +102,89 @@ namespace Bomberman
             _animator = GetComponent<Animator>();
         }
 
-        private void Start()
+        public override void OnNetworkSpawn()
         {
+            _nickname.OnValueChanged += OnNicknameChanged;
+            _networkFlipX.OnValueChanged += OnFlipXChanged;
+
             _bombsAllowed = 1;
             _fireLength = 1;
+
+            if (IsOwner)
+            {
+                CameraController cameraController = FindFirstObjectByType<CameraController>();
+                if (cameraController != null)
+                {
+                    cameraController.SetTarget(transform);
+                }
+
+                _nickname.Value = LobbyManager.PlayerName;
+            }
+
+            UpdateNicknameDisplay(_nickname.Value.ToString());
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            _nickname.OnValueChanged -= OnNicknameChanged;
+            _networkFlipX.OnValueChanged -= OnFlipXChanged;
+        }
+
+        private void OnNicknameChanged(FixedString64Bytes oldValue, FixedString64Bytes newValue)
+        {
+            UpdateNicknameDisplay(newValue.ToString());
+        }
+
+        private void OnFlipXChanged(bool oldValue, bool newValue)
+        {
+            _spriteRenderer.flipX = newValue;
+        }
+
+        private void UpdateNicknameDisplay(string nickname)
+        {
+            if (_nicknameText != null)
+            {
+                _nicknameText.text = nickname;
+                _nicknameText.color = Color.black;
+            }
         }
 
         private void Update()
         {
-            GetInput();
-            GetDirection();
-            HandleSensor();
-            HandleBombs();
-            Move();
+            if (IsOwner)
+            {
+                GetInput();
+                GetDirection();
+                HandleSensor();
+                HandleBombs();
+                Move();
+
+                if (_networkDirection.Value != _direction)
+                {
+                    _networkDirection.Value = _direction;
+                }
+                
+                if (_networkIsMoving.Value != _isMoving)
+                {
+                    _networkIsMoving.Value = _isMoving;
+                }
+                
+                if (_networkFlipX.Value != _spriteRenderer.flipX)
+                {
+                    _networkFlipX.Value = _spriteRenderer.flipX;
+                }
+            }
+
             Animate();
         }
 
         private void OnTriggerEnter2D(Collider2D other)
         {
+            if (!IsOwner)
+            {
+                return;
+            }
+
             if (!other.gameObject.CompareTag("PowerUp"))
             {
                 return;
@@ -107,6 +197,11 @@ namespace Bomberman
 
         public void Damage(int source)
         {
+            if (!IsOwner)
+            {
+                return;
+            }
+
             if (source == Bomberman.Damage.ENEMY_DAMAGE)
             {
                 Die();
@@ -162,8 +257,28 @@ namespace Bomberman
 
         private void Die()
         {
-            Instantiate(_deathEffect, transform.position, transform.rotation);
-            Destroy(gameObject);
+            if (IsServer)
+            {
+                SpawnDeathEffectClientRpc(transform.position);
+                GetComponent<NetworkObject>().Despawn(true);
+            }
+            else
+            {
+                DieServerRpc();
+            }
+        }
+
+        [ServerRpc]
+        private void DieServerRpc()
+        {
+            SpawnDeathEffectClientRpc(transform.position);
+            GetComponent<NetworkObject>().Despawn(true);
+        }
+
+        [ClientRpc]
+        private void SpawnDeathEffectClientRpc(Vector3 position)
+        {
+            Instantiate(_deathEffect, position, Quaternion.identity);
         }
 
         private void HandleBombs()
@@ -327,8 +442,16 @@ namespace Bomberman
 
         private void Animate()
         {
-            _animator.SetInteger("Direction", _direction);
-            _animator.SetBool("Moving", _isMoving);
+            if (IsOwner)
+            {
+                _animator.SetInteger("Direction", _direction);
+                _animator.SetBool("Moving", _isMoving);
+            }
+            else
+            {
+                _animator.SetInteger("Direction", _networkDirection.Value);
+                _animator.SetBool("Moving", _networkIsMoving.Value);
+            }
         }
     }
 }
