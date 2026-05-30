@@ -255,8 +255,13 @@ namespace Bomberman
             }
         }
 
+        private bool _isDead;
+
         private void Die()
         {
+            if (_isDead) return;
+            _isDead = true;
+
             if (IsServer)
             {
                 SpawnDeathEffectClientRpc(transform.position);
@@ -271,6 +276,7 @@ namespace Bomberman
         [ServerRpc]
         private void DieServerRpc()
         {
+            if (!NetworkObject.IsSpawned) return;
             SpawnDeathEffectClientRpc(transform.position);
             GetComponent<NetworkObject>().Despawn(true);
         }
@@ -293,22 +299,74 @@ namespace Bomberman
                     Mathf.Round(transform.position.x),
                     Mathf.Round(transform.position.y));
 
-                GameObject bombObject = Instantiate(_bombPrefab, bombPosition, transform.rotation);
-                Bomb bomb = bombObject.GetComponent<Bomb>();
-                bomb.Init(this);
-                _activeBombs.Add(bomb);
-
-                BombPlacedEvent?.Invoke();
+                SpawnBombLocally(bombPosition, _fireLength, _hasDetonator);
+                PlaceBombServerRpc(bombPosition, _fireLength, _hasDetonator);
             }
 
             if (_isButtonDetonate)
             {
-                List<Bomb> bombsCopy = new List<Bomb>(_activeBombs);
-                foreach (Bomb bomb in bombsCopy)
+                DetonateBombsLocally();
+                DetonateBombsServerRpc();
+            }
+        }
+
+        private void SpawnBombLocally(Vector2 position, int fireLength, bool hasDetonator)
+        {
+            GameObject bombObject = Instantiate(_bombPrefab, position, transform.rotation);
+            Bomb bomb = bombObject.GetComponent<Bomb>();
+            bomb.Init(this, fireLength, hasDetonator);
+            _activeBombs.Add(bomb);
+
+            if (IsOwner)
+            {
+                BombPlacedEvent?.Invoke();
+            }
+        }
+
+        private void DetonateBombsLocally()
+        {
+            List<Bomb> bombsCopy = new List<Bomb>(_activeBombs);
+            foreach (Bomb bomb in bombsCopy)
+            {
+                if (bomb != null)
                 {
                     bomb.Blow();
                 }
             }
+        }
+
+        [ServerRpc]
+        private void PlaceBombServerRpc(Vector2 position, int fireLength, bool hasDetonator)
+        {
+            PlaceBombClientRpc(position, fireLength, hasDetonator);
+        }
+
+        [ClientRpc]
+        private void PlaceBombClientRpc(Vector2 position, int fireLength, bool hasDetonator)
+        {
+            if (IsOwner)
+            {
+                return;
+            }
+
+            SpawnBombLocally(position, fireLength, hasDetonator);
+        }
+
+        [ServerRpc]
+        private void DetonateBombsServerRpc()
+        {
+            DetonateBombsClientRpc();
+        }
+
+        [ClientRpc]
+        private void DetonateBombsClientRpc()
+        {
+            if (IsOwner)
+            {
+                return;
+            }
+
+            DetonateBombsLocally();
         }
 
         private void Move()

@@ -8,8 +8,11 @@ namespace Bomberman
         public Vector2 TargetPosition;
         public Node PreviousNode;
 
+        // F = G + H (total estimated cost)
         public int F;
+        // G = distance from start to this node
         public int G;
+        // H = heuristic distance from this node to target
         public int H;
 
         public Node(int g, Vector2 nodePosition, Vector2 targetPosition, Node previousNode)

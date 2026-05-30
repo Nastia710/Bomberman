@@ -40,10 +40,11 @@ namespace Bomberman
         private List<Vector2> _cellsToBlowUp = new List<Vector2>();
         private List<Vector2> _cellsToBlowDown = new List<Vector2>();
 
-        public void Init(BomberMan bomberMan)
+        public void Init(BomberMan bomberMan, int fireLength, bool hasDetonator)
         {
             _bomberMan = bomberMan;
-            _canTick = !_bomberMan.CheckDetonator();
+            _fireLength = fireLength;
+            _canTick = !hasDetonator;
             _isCalculated = false;
             _counter = _delay;
         }
@@ -115,8 +116,6 @@ namespace Bomberman
             {
                 return;
             }
-
-            _fireLength = _bomberMan.GetFireLength();
 
             CalculateDirectionCells(_cellsToBlowLeft, Vector2.left);
             CalculateDirectionCells(_cellsToBlowRight, Vector2.right);
