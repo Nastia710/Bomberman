@@ -52,19 +52,12 @@ namespace Bomberman
             float minX = _bottomLeftBound.position.x - 0.5f;
             float minY = _bottomLeftBound.position.y - 0.5f;
             float maxX = _topRightBound.position.x + 0.5f;
-            float maxY = _topRightBound.position.y + 0.5f;
+            Vector3 desiredPosition = new Vector3(_target.position.x, _target.position.y, transform.position.z);
 
-            Vector3 playerPosition = _target.position;
+            float clampedX = Mathf.Clamp(desiredPosition.x, _bottomLeftBound.position.x - 0.5f + cameraHalfWidth, _topRightBound.position.x + 0.5f - cameraHalfWidth);
+            float clampedY = Mathf.Clamp(desiredPosition.y, _bottomLeftBound.position.y - 0.5f + cameraHalfHeight, _topRightBound.position.y + 0.5f - cameraHalfHeight);
 
-            float clampMinX = minX + cameraHalfWidth;
-            float clampMaxX = maxX - cameraHalfWidth;
-            float x = clampMinX > clampMaxX ? (minX + maxX) / 2f : Mathf.Clamp(playerPosition.x, clampMinX, clampMaxX);
-
-            float clampMinY = minY + cameraHalfHeight;
-            float clampMaxY = maxY - cameraHalfHeight;
-            float y = clampMinY > clampMaxY ? (minY + maxY) / 2f : Mathf.Clamp(playerPosition.y, clampMinY, clampMaxY);
-
-            transform.position = new Vector3(x, y, transform.position.z);
+            transform.position = new Vector3(clampedX, clampedY, desiredPosition.z);
         }
 
         private void OnDrawGizmos()

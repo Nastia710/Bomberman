@@ -166,13 +166,13 @@ MonoBehaviour:
   _fireTop: {fileID: 113853098240178710, guid: 97d06d436bc19e24babd1af58dbcc906, type: 3}
   _fireBottom: {fileID: 761193065816827812, guid: 3050cd7d2b5ba08489a239918478009e,
     type: 3}
-  _delay: 1.5
+  _delay: 2
   _stoneLayer:
     serializedVersion: 2
     m_Bits: 256
   _blowableLayer:
     serializedVersion: 2
-    m_Bits: 1024
+    m_Bits: 1536
 --- !u!50 &2643736101742805722
 Rigidbody2D:
   serializedVersion: 5

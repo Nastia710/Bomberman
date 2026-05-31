@@ -64,6 +64,11 @@ namespace Bomberman
             }
         }
 
+        public void StartTicking()
+        {
+            _canTick = true;
+        }
+
         private void OnCollisionEnter2D(Collision2D other)
         {
             if (other.gameObject.CompareTag("Fire"))

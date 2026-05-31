@@ -21,6 +21,12 @@ namespace Bomberman
         private float _countdownDuration = 3f;
         [SerializeField]
         private GameObject _bomberManPrefab;
+        [SerializeField]
+        private GameObject[] _powerUpPrefabs;
+
+        private int _powerUpsToSpawn;
+        private Dictionary<Vector2, int> _powerUpLocations = new Dictionary<Vector2, int>();
+        private bool _allClientsLoaded = false;
 
         private readonly Vector2[] _arenaSpawnPositions = new Vector2[]
         {
@@ -68,6 +74,42 @@ namespace Bomberman
                 _gameState.Value = GameState.Countdown;
                 _countdownTimer.Value = _countdownDuration;
                 _countdownFinished = false;
+                _allClientsLoaded = false;
+
+                if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.SceneManager != null)
+                {
+                    Unity.Netcode.NetworkManager.Singleton.SceneManager.OnLoadEventCompleted += OnLoadEventCompleted;
+                }
+                else
+                {
+                    _allClientsLoaded = true; // Fallback
+                }
+
+                _powerUpLocations.Clear();
+                
+                GameObject[] bricks = GameObject.FindGameObjectsWithTag("Brick");
+                List<int> availableIndices = new List<int>() { 0, 1, 2, 3, 4, 5, 6 };
+                
+                if (bricks.Length >= 7)
+                {
+                    List<GameObject> shuffledBricks = new System.Collections.Generic.List<GameObject>(bricks);
+                    for (int i = 0; i < shuffledBricks.Count; i++)
+                    {
+                        GameObject temp = shuffledBricks[i];
+                        int randomIndex = UnityEngine.Random.Range(i, shuffledBricks.Count);
+                        shuffledBricks[i] = shuffledBricks[randomIndex];
+                        shuffledBricks[randomIndex] = temp;
+                    }
+
+                    for (int i = 0; i < 7; i++)
+                    {
+                        Vector2 pos = new Vector2(
+                            Mathf.Round(shuffledBricks[i].transform.position.x),
+                            Mathf.Round(shuffledBricks[i].transform.position.y)
+                        );
+                        _powerUpLocations[pos] = availableIndices[i];
+                    }
+                }
 
                 SpawnArenaPlayers();
             }
@@ -76,10 +118,27 @@ namespace Bomberman
             UpdateCountdownDisplay();
         }
 
+        private void OnLoadEventCompleted(string sceneName, UnityEngine.SceneManagement.LoadSceneMode loadSceneMode, System.Collections.Generic.List<ulong> clientsCompleted, System.Collections.Generic.List<ulong> clientsTimedOut)
+        {
+            if (sceneName == "SampleScene")
+            {
+                _allClientsLoaded = true;
+                if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.SceneManager != null)
+                {
+                    Unity.Netcode.NetworkManager.Singleton.SceneManager.OnLoadEventCompleted -= OnLoadEventCompleted;
+                }
+            }
+        }
+
         public override void OnNetworkDespawn()
         {
             _gameState.OnValueChanged -= OnGameStateChanged;
             _countdownTimer.OnValueChanged -= OnCountdownTimerChanged;
+
+            if (IsServer && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.SceneManager != null)
+            {
+                Unity.Netcode.NetworkManager.Singleton.SceneManager.OnLoadEventCompleted -= OnLoadEventCompleted;
+            }
         }
 
         private void Update()
@@ -106,7 +165,7 @@ namespace Bomberman
                 return;
             }
 
-            if (_gameState.Value == GameState.Countdown && !_countdownFinished)
+            if (_gameState.Value == GameState.Countdown && !_countdownFinished && _allClientsLoaded)
             {
                 _countdownTimer.Value -= Time.deltaTime;
 
@@ -133,6 +192,22 @@ namespace Bomberman
 
                 NetworkObject networkObject = player.GetComponent<NetworkObject>();
                 networkObject.SpawnWithOwnership(clientIds[i]);
+            }
+        }
+
+        public void OnBrickDestroyed(Vector3 position)
+        {
+            if (!IsServer) return;
+
+            Vector2 key = new Vector2(Mathf.Round(position.x), Mathf.Round(position.y));
+            if (_powerUpLocations.TryGetValue(key, out int powerUpIndex))
+            {
+                _powerUpLocations.Remove(key);
+                if (powerUpIndex < _powerUpPrefabs.Length && _powerUpPrefabs[powerUpIndex] != null)
+                {
+                    GameObject powerUp = Instantiate(_powerUpPrefabs[powerUpIndex], position, Quaternion.identity);
+                    powerUp.GetComponent<NetworkObject>().Spawn();
+                }
             }
         }
 

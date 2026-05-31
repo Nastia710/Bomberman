@@ -59,6 +59,11 @@ namespace Bomberman
                 return;
             }
 
+            if (GameManager.Instance != null && !GameManager.Instance.IsPlaying())
+            {
+                return;
+            }
+
             if (_currentPath.Count == 0
                 && Vector2.Distance(transform.position, _bomberMan.transform.position) > 0.5f)
             {

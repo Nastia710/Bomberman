@@ -48,6 +48,18 @@ namespace Bomberman
         [SerializeField]
         private TMP_Text _nicknameText;
 
+        [SerializeField]
+        private GameObject _powerUpTextPrefab;
+
+        private class ActivePowerUp
+        {
+            public PowerUpType Type;
+            public float Timer;
+            public TMP_Text UIText;
+        }
+
+        private List<ActivePowerUp> _activePowerUps = new List<ActivePowerUp>();
+
         private bool _isButtonLeft;
         private bool _isButtonRight;
         private bool _isButtonUp;
@@ -153,6 +165,10 @@ namespace Bomberman
         {
             if (IsOwner)
             {
+                UpdatePowerUpTimers();
+                
+                if (GameManager.Instance != null && !GameManager.Instance.IsPlaying()) return;
+
                 GetInput();
                 GetDirection();
                 HandleSensor();
@@ -192,7 +208,24 @@ namespace Bomberman
 
             PowerUp powerUp = other.GetComponent<PowerUp>();
             ApplyPowerUp(powerUp.Type);
-            Destroy(other.gameObject);
+            
+            if (IsServer)
+            {
+                other.GetComponent<NetworkObject>()?.Despawn(true);
+            }
+            else
+            {
+                DespawnPowerUpServerRpc(other.gameObject);
+            }
+        }
+
+        [ServerRpc]
+        private void DespawnPowerUpServerRpc(Unity.Netcode.NetworkObjectReference powerUpRef)
+        {
+            if (powerUpRef.TryGet(out NetworkObject powerUpNetObj))
+            {
+                powerUpNetObj.Despawn(true);
+            }
         }
 
         public void Damage(int source)
@@ -229,10 +262,11 @@ namespace Bomberman
 
         private void ApplyPowerUp(int type)
         {
-            switch ((PowerUpType)type)
+            PowerUpType pType = (PowerUpType)type;
+            switch (pType)
             {
                 case PowerUpType.ExtraBomb:
-                    _bombsAllowed++;
+                    if (_bombsAllowed < 5) _bombsAllowed++;
                     break;
                 case PowerUpType.ExtraFire:
                     _fireLength++;
@@ -253,6 +287,87 @@ namespace Bomberman
                     _hasDetonator = true;
                     break;
             }
+
+            if (IsOwner)
+            {
+                AddPowerUpTimer(pType);
+            }
+        }
+
+        private void AddPowerUpTimer(PowerUpType type)
+        {
+            if (_powerUpTextPrefab == null) return;
+
+            GameObject containerObj = GameObject.Find("PowerUpContainer");
+            if (containerObj == null)
+            {
+                Debug.LogWarning("PowerUpContainer not found in the scene! UI timer will not be shown.");
+                return;
+            }
+
+            GameObject textObj = Instantiate(_powerUpTextPrefab, containerObj.transform);
+            TMP_Text uiText = textObj.GetComponent<TMP_Text>();
+
+            _activePowerUps.Add(new ActivePowerUp
+            {
+                Type = type,
+                Timer = 15f,
+                UIText = uiText
+            });
+        }
+
+        private void UpdatePowerUpTimers()
+        {
+            if (!IsOwner) return;
+
+            for (int i = _activePowerUps.Count - 1; i >= 0; i--)
+            {
+                ActivePowerUp p = _activePowerUps[i];
+                p.Timer -= Time.deltaTime;
+
+                if (p.Timer > 0)
+                {
+                    p.UIText.text = $"{p.Type}: {Mathf.CeilToInt(p.Timer)}s";
+                }
+                else
+                {
+                    RemovePowerUpEffect(p.Type);
+                    Destroy(p.UIText.gameObject);
+                    _activePowerUps.RemoveAt(i);
+                }
+            }
+        }
+
+        private void RemovePowerUpEffect(PowerUpType type)
+        {
+            switch (type)
+            {
+                case PowerUpType.ExtraBomb:
+                    _bombsAllowed = Mathf.Max(1, _bombsAllowed - 1);
+                    break;
+                case PowerUpType.ExtraFire:
+                    _fireLength = Mathf.Max(1, _fireLength - 1);
+                    break;
+                case PowerUpType.SpeedBoost:
+                    _moveSpeed -= _speedBoostPower;
+                    break;
+                case PowerUpType.NoclipWalls:
+                    _hasNoclipWalls = false;
+                    break;
+                case PowerUpType.NoclipFire:
+                    _hasNoclipFire = false;
+                    break;
+                case PowerUpType.NoclipBombs:
+                    _hasNoclipBombs = false;
+                    break;
+                case PowerUpType.Detonator:
+                    _hasDetonator = false;
+                    foreach (var bomb in _activeBombs)
+                    {
+                        if (bomb != null) bomb.StartTicking();
+                    }
+                    break;
+            }
         }
 
         private bool _isDead;
@@ -261,6 +376,15 @@ namespace Bomberman
         {
             if (_isDead) return;
             _isDead = true;
+
+            for (int i = 0; i < _activePowerUps.Count; i++)
+            {
+                if (_activePowerUps[i].UIText != null)
+                {
+                    Destroy(_activePowerUps[i].UIText.gameObject);
+                }
+            }
+            _activePowerUps.Clear();
 
             if (IsServer)
             {
@@ -303,7 +427,7 @@ namespace Bomberman
                 PlaceBombServerRpc(bombPosition, _fireLength, _hasDetonator);
             }
 
-            if (_isButtonDetonate)
+            if (_isButtonDetonate && _hasDetonator)
             {
                 DetonateBombsLocally();
                 DetonateBombsServerRpc();

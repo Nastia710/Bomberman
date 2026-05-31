@@ -11,8 +11,9 @@ GameObject:
   - component: {fileID: 427339023737344659}
   - component: {fileID: 427339023737344658}
   - component: {fileID: 427339023737344657}
-  - component: {fileID: 427339023737344656}
   - component: {fileID: 4587179433709534453}
+  - component: {fileID: 427339023737344656}
+  - component: {fileID: -4246399679439160614}
   m_Layer: 12
   m_Name: PowerUp-ExtraSpeed
   m_TagString: PowerUp
@@ -141,20 +142,6 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
---- !u!114 &427339023737344656
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 427339023737344661}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 22c64b66afbbe7a4d9f0b4c972d7f5d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _type: 2
-  _invincibilityTime: 0.5
 --- !u!50 &4587179433709534453
 Rigidbody2D:
   serializedVersion: 5
@@ -182,3 +169,42 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 7
+--- !u!114 &427339023737344656
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 427339023737344661}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 22c64b66afbbe7a4d9f0b4c972d7f5d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _type: 2
+  _invincibilityTime: 0.5
+--- !u!114 &-4246399679439160614
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 427339023737344661}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
+  GlobalObjectIdHash: 3072074317
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0

@@ -23,7 +23,10 @@ namespace Bomberman
         {
             if (other.gameObject.CompareTag("Fire") && _invincibilityTime <= 0)
             {
-                Destroy(gameObject);
+                if (Unity.Netcode.NetworkManager.Singleton.IsServer)
+                {
+                    GetComponent<Unity.Netcode.NetworkObject>().Despawn(true);
+                }
             }
         }
     }

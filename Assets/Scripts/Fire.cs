@@ -18,6 +18,11 @@ namespace Bomberman
             {
                 Destroy(other.gameObject);
                 Instantiate(_brickDeathEffect, transform.position, transform.rotation);
+                
+                if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+                {
+                    GameManager.Instance.OnBrickDestroyed(transform.position);
+                }
             }
         }
     }
