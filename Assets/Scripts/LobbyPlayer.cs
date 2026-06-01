@@ -5,44 +5,48 @@ using TMPro;
 
 namespace Bomberman
 {
-    public class LobbyPlayer : NetworkBehaviour
-    {
-        [SerializeField]
-        private TMP_Text _nicknameText;
+	public class LobbyPlayer : NetworkBehaviour
+	{
+		[SerializeField]
+		private TMP_Text _nicknameText;
 
-        private NetworkVariable<FixedString64Bytes> _nickname = new NetworkVariable<FixedString64Bytes>(
-            "",
-            NetworkVariableReadPermission.Everyone,
-            NetworkVariableWritePermission.Owner);
+		private NetworkVariable<FixedString64Bytes> _nickname = new NetworkVariable<FixedString64Bytes>(
+			"",
+			NetworkVariableReadPermission.Everyone,
+			NetworkVariableWritePermission.Owner);
 
-        public override void OnNetworkSpawn()
-        {
-            _nickname.OnValueChanged += OnNicknameChanged;
-            UpdateNicknameDisplay(_nickname.Value.ToString());
+		private void OnEnable()
+		{
+			_nickname.OnValueChanged += OnNicknameChanged;
+		}
 
-            if (IsOwner)
-            {
-                string localNickname = LobbyManager.PlayerName;
-                _nickname.Value = localNickname;
-            }
-        }
+		public override void OnNetworkSpawn()
+		{
+			UpdateNicknameDisplay(_nickname.Value.ToString());
 
-        public override void OnNetworkDespawn()
-        {
-            _nickname.OnValueChanged -= OnNicknameChanged;
-        }
+			if (IsOwner)
+			{
+				string localNickname = LobbyManager.PlayerName;
+				_nickname.Value = localNickname;
+			}
+		}
 
-        private void OnNicknameChanged(FixedString64Bytes oldValue, FixedString64Bytes newValue)
-        {
-            UpdateNicknameDisplay(newValue.ToString());
-        }
+		private void OnDisable()
+		{
+			_nickname.OnValueChanged -= OnNicknameChanged;
+		}
 
-        private void UpdateNicknameDisplay(string nickname)
-        {
-            if (_nicknameText != null)
-            {
-                _nicknameText.text = nickname;
-            }
-        }
-    }
+		private void OnNicknameChanged(FixedString64Bytes oldValue, FixedString64Bytes newValue)
+		{
+			UpdateNicknameDisplay(newValue.ToString());
+		}
+
+		private void UpdateNicknameDisplay(string nickname)
+		{
+			if (_nicknameText != null)
+			{
+				_nicknameText.text = nickname;
+			}
+		}
+	}
 }

@@ -6,14 +6,32 @@ namespace Bomberman
 {
     public class PathFinder : MonoBehaviour
     {
-        [SerializeField]
-        private LayerMask _solidLayer;
+		public List<Node> FreeNodes = new List<Node>();
 
-        private List<Vector2> _pathToTarget;
-        private List<Node> _checkedNodes = new List<Node>();
-        private List<Node> _waitingNodes = new List<Node>();
+		[SerializeField]
+		private LayerMask _solidLayer;
 
-        public List<Node> FreeNodes = new List<Node>();
+		private List<Vector2> _pathToTarget;
+		private List<Node> _checkedNodes = new List<Node>();
+		private List<Node> _waitingNodes = new List<Node>();
+
+		private void OnDrawGizmos()
+		{
+			foreach (Node item in _checkedNodes)
+			{
+				Gizmos.color = Color.yellow;
+				Gizmos.DrawSphere(new Vector2(item.Position.x, item.Position.y), 0.1f);
+			}
+
+			if (_pathToTarget != null)
+			{
+				foreach (Vector2 item in _pathToTarget)
+				{
+					Gizmos.color = Color.red;
+					Gizmos.DrawSphere(new Vector2(item.x, item.y), 0.2f);
+				}
+			}
+		}
 
         public List<Vector2> GetPath(Vector2 target)
         {
@@ -39,9 +57,8 @@ namespace Bomberman
 
             while (_waitingNodes.Count > 0)
             {
-                Node nodeToCheck = _waitingNodes
-                    .Where(x => x.F == _waitingNodes.Min(y => y.F))
-                    .FirstOrDefault();
+                int minCost = _waitingNodes.Min(other => other.TotalCost);
+                Node nodeToCheck = _waitingNodes.FirstOrDefault(node => node.TotalCost == minCost);
 
                 if (nodeToCheck.Position == targetPosition)
                 {
@@ -59,7 +76,7 @@ namespace Bomberman
                 {
                     _waitingNodes.Remove(nodeToCheck);
 
-                    if (!_checkedNodes.Where(x => x.Position == nodeToCheck.Position).Any())
+                    if (!_checkedNodes.Where(node => node.Position == nodeToCheck.Position).Any())
                     {
                         _checkedNodes.Add(nodeToCheck);
                         _waitingNodes.AddRange(GetNeighbourNodes(nodeToCheck));
@@ -89,38 +106,21 @@ namespace Bomberman
         {
             List<Node> neighbours = new List<Node>();
 
-            neighbours.Add(new Node(node.G + 1,
+            neighbours.Add(new Node(node.MovementCost + 1,
                 new Vector2(node.Position.x - 1, node.Position.y),
                 node.TargetPosition, node));
-            neighbours.Add(new Node(node.G + 1,
+            neighbours.Add(new Node(node.MovementCost + 1,
                 new Vector2(node.Position.x + 1, node.Position.y),
                 node.TargetPosition, node));
-            neighbours.Add(new Node(node.G + 1,
+            neighbours.Add(new Node(node.MovementCost + 1,
                 new Vector2(node.Position.x, node.Position.y - 1),
                 node.TargetPosition, node));
-            neighbours.Add(new Node(node.G + 1,
+            neighbours.Add(new Node(node.MovementCost + 1,
                 new Vector2(node.Position.x, node.Position.y + 1),
                 node.TargetPosition, node));
 
             return neighbours;
         }
 
-        private void OnDrawGizmos()
-        {
-            foreach (Node item in _checkedNodes)
-            {
-                Gizmos.color = Color.yellow;
-                Gizmos.DrawSphere(new Vector2(item.Position.x, item.Position.y), 0.1f);
-            }
-
-            if (_pathToTarget != null)
-            {
-                foreach (Vector2 item in _pathToTarget)
-                {
-                    Gizmos.color = Color.red;
-                    Gizmos.DrawSphere(new Vector2(item.x, item.y), 0.2f);
-                }
-            }
         }
-    }
 }

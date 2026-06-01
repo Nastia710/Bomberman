@@ -3,80 +3,103 @@ using Unity.Netcode;
 
 namespace Bomberman
 {
-    public class CameraController : MonoBehaviour
-    {
-        [SerializeField]
-        private Transform _bottomLeftBound;
-        [SerializeField]
-        private Transform _topRightBound;
+	public class CameraController : MonoBehaviour
+	{
+		public static CameraController Instance { get; private set; }
 
-        private Camera _camera;
-        private Transform _target;
+		[SerializeField]
+		private Transform _bottomLeftBound;
+		[SerializeField]
+		private Transform _topRightBound;
 
-        private void Awake()
-        {
-            _camera = GetComponent<Camera>();
-        }
+		private Camera _camera;
+		private Transform _target;
+		private bool _isPanning;
 
-        public void SetTarget(Transform target)
-        {
-            _target = target;
-        }
+		private void Awake()
+		{
+			Instance = this;
+			_camera = GetComponent<Camera>();
+		}
 
-        private void LateUpdate()
-        {
-            if (_target == null)
-            {
-                if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsConnectedClient)
-                {
-                    BomberMan[] players = FindObjectsByType<BomberMan>(FindObjectsSortMode.None);
-                    foreach (BomberMan p in players)
-                    {
-                        if (p.IsOwner)
-                        {
-                            _target = p.transform;
-                            break;
-                        }
-                    }
-                }
+		private void LateUpdate()
+		{
+			if (_bottomLeftBound == null || _topRightBound == null)
+			{
+				return;
+			}
 
-                if (_target == null)
-                {
-                    return;
-                }
-            }
+			if (_target == null)
+			{
+				if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsConnectedClient)
+				{
+					foreach (BomberMan player in BomberMan.AllPlayers)
+					{
+						if (player != null && player.IsOwner)
+						{
+							_target = player.transform;
+							break;
+						}
+					}
+				}
 
-            float cameraHalfHeight = _camera.orthographicSize;
-            float cameraHalfWidth = cameraHalfHeight * ((float)Screen.width / Screen.height);
+				if (_target == null)
+				{
+					return;
+				}
+			}
 
-            float minX = _bottomLeftBound.position.x - 0.5f;
-            float minY = _bottomLeftBound.position.y - 0.5f;
-            float maxX = _topRightBound.position.x + 0.5f;
-            Vector3 desiredPosition = new Vector3(_target.position.x, _target.position.y, transform.position.z);
+			float cameraHalfHeight = _camera.orthographicSize;
+			float cameraHalfWidth = cameraHalfHeight * ((float)Screen.width / Screen.height);
 
-            float clampedX = Mathf.Clamp(desiredPosition.x, _bottomLeftBound.position.x - 0.5f + cameraHalfWidth, _topRightBound.position.x + 0.5f - cameraHalfWidth);
-            float clampedY = Mathf.Clamp(desiredPosition.y, _bottomLeftBound.position.y - 0.5f + cameraHalfHeight, _topRightBound.position.y + 0.5f - cameraHalfHeight);
+			Vector3 desiredPosition = new Vector3(_target.position.x, _target.position.y, transform.position.z);
 
-            transform.position = new Vector3(clampedX, clampedY, desiredPosition.z);
-        }
+			float clampedX = Mathf.Clamp(desiredPosition.x, _bottomLeftBound.position.x - 0.5f + cameraHalfWidth, _topRightBound.position.x + 0.5f - cameraHalfWidth);
+			float clampedY = Mathf.Clamp(desiredPosition.y, _bottomLeftBound.position.y - 0.5f + cameraHalfHeight, _topRightBound.position.y + 0.5f - cameraHalfHeight);
 
-        private void OnDrawGizmos()
-        {
-            if (_bottomLeftBound == null || _topRightBound == null)
-            {
-                return;
-            }
+			Vector3 finalPosition = new Vector3(clampedX, clampedY, desiredPosition.z);
 
-            float minX = _bottomLeftBound.position.x - 0.5f;
-            float minY = _bottomLeftBound.position.y - 0.5f;
-            float maxX = _topRightBound.position.x + 0.5f;
-            float maxY = _topRightBound.position.y + 0.5f;
+			if (Vector3.Distance(transform.position, finalPosition) > 5f)
+			{
+				_isPanning = true;
+			}
 
-            Gizmos.color = Color.red;
-            Gizmos.DrawLine(new Vector2(minX, minY), new Vector2(maxX, minY));
-            Gizmos.DrawLine(new Vector2(minX, maxY), new Vector2(maxX, maxY));
-            Gizmos.DrawLine(new Vector2(minX, minY), new Vector2(minX, maxY));
-            Gizmos.DrawLine(new Vector2(maxX, minY), new Vector2(maxX, maxY));
-        }
-    }
+			if (_isPanning)
+			{
+				transform.position = Vector3.Lerp(transform.position, finalPosition, 15f * Time.deltaTime);
+				if (Vector3.Distance(transform.position, finalPosition) < 0.1f)
+				{
+					_isPanning = false;
+				}
+			}
+			else
+			{
+				transform.position = finalPosition;
+			}
+		}
+
+		private void OnDrawGizmos()
+		{
+			if (_bottomLeftBound == null || _topRightBound == null)
+			{
+				return;
+			}
+
+			float minX = _bottomLeftBound.position.x - 0.5f;
+			float minY = _bottomLeftBound.position.y - 0.5f;
+			float maxX = _topRightBound.position.x + 0.5f;
+			float maxY = _topRightBound.position.y + 0.5f;
+
+			Gizmos.color = Color.red;
+			Gizmos.DrawLine(new Vector2(minX, minY), new Vector2(maxX, minY));
+			Gizmos.DrawLine(new Vector2(minX, maxY), new Vector2(maxX, maxY));
+			Gizmos.DrawLine(new Vector2(minX, minY), new Vector2(minX, maxY));
+			Gizmos.DrawLine(new Vector2(maxX, minY), new Vector2(maxX, maxY));
+		}
+
+		public void SetTarget(Transform target)
+		{
+			_target = target;
+		}
+	}
 }
