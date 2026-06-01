@@ -6,6 +6,12 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
+using Unity.Services.Core;
+using Unity.Services.Authentication;
+using Unity.Services.Relay;
+using Unity.Services.Relay.Models;
+using Unity.Netcode.Transports.UTP;
+using Unity.Networking.Transport.Relay;
 
 namespace Bomberman
 {
@@ -39,6 +45,8 @@ namespace Bomberman
 		[SerializeField]
 		private GameObject _disconnectedPanel;
 		[SerializeField]
+		private Toggle _useRelayToggle;
+		[SerializeField]
 		private string _gameSceneName = "SampleScene";
 
 		private NetworkVariable<int> _playerCount = new NetworkVariable<int>(
@@ -51,7 +59,7 @@ namespace Bomberman
 		private bool[] _occupiedSlots = new bool[5];
 
 		private string _localNickname = "Player";
-		private string _hostPassword = "";
+		private static string s_hostPassword = "";
 
 		private const int MAX_PLAYERS = 5;
 		private const string REASON_WRONG_PASSWORD = "Wrong password";
@@ -72,11 +80,31 @@ namespace Bomberman
 			SubscribeEvents();
 		}
 
-		private void Start()
+		private async void Start()
 		{
 			if (NetworkManager.Singleton != null)
 			{
 				NetworkManager.Singleton.NetworkConfig.PlayerPrefab = null;
+			}
+
+			try
+			{
+				InitializationOptions options = new InitializationOptions();
+#if UNITY_EDITOR
+				if (ParrelSync.ClonesManager.IsClone())
+				{
+					options.SetProfile(ParrelSync.ClonesManager.GetArgument());
+				}
+#endif
+				await UnityServices.InitializeAsync(options);
+
+				if (!AuthenticationService.Instance.IsSignedIn)
+				{
+					await AuthenticationService.Instance.SignInAnonymouslyAsync();
+				}
+			}
+			catch (Exception)
+			{
 			}
 
 			if (HasBeenDisconnectedFromGame)
@@ -184,11 +212,42 @@ namespace Bomberman
 				|| reason == REASON_ROOM_FULL;
 		}
 
-		private void OnHostClicked()
+		private async void OnHostClicked()
 		{
 			_localNickname = GetNickname();
-			_hostPassword = _passwordInput.text.Trim();
+			s_hostPassword = _passwordInput.text.Trim().ToUpper();
 			PlayerName = _localNickname;
+
+			var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
+
+			if (_useRelayToggle != null && _useRelayToggle.isOn)
+			{
+				try
+				{
+					Allocation allocation = await RelayService.Instance.CreateAllocationAsync(MAX_PLAYERS - 1);
+					string joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
+					
+					_passwordInput.text = joinCode;
+					s_hostPassword = joinCode;
+					GUIUtility.systemCopyBuffer = joinCode;
+
+					transport.SetHostRelayData(
+						allocation.RelayServer.IpV4,
+						(ushort)allocation.RelayServer.Port,
+						allocation.AllocationIdBytes,
+						allocation.Key,
+						allocation.ConnectionData);
+				}
+				catch (Exception)
+				{
+					ShowError("Failed to create Relay room");
+					return;
+				}
+			}
+			else
+			{
+				transport.SetConnectionData("127.0.0.1", 7777, "0.0.0.0");
+			}
 			
 			NetworkManager.Singleton.ConnectionApprovalCallback = OnConnectionApproval;
 			NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
@@ -199,11 +258,43 @@ namespace Bomberman
 			UpdateStatusText();
 		}
 
-		private void OnJoinClicked()
+		private async void OnJoinClicked()
 		{
 			_localNickname = GetNickname();
-			string password = _passwordInput.text.Trim();
+			string password = _passwordInput.text.Trim().ToUpper();
 			PlayerName = _localNickname;
+
+			var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
+
+			if (_useRelayToggle != null && _useRelayToggle.isOn)
+			{
+				if (string.IsNullOrEmpty(password))
+				{
+					ShowError("Join Code is required");
+					return;
+				}
+				
+				try
+				{
+					JoinAllocation joinAllocation = await RelayService.Instance.JoinAllocationAsync(password);
+					transport.SetClientRelayData(
+						joinAllocation.RelayServer.IpV4,
+						(ushort)joinAllocation.RelayServer.Port,
+						joinAllocation.AllocationIdBytes,
+						joinAllocation.Key,
+						joinAllocation.ConnectionData,
+						joinAllocation.HostConnectionData);
+				}
+				catch (Exception)
+				{
+					ShowError("Failed to join Relay room");
+					return;
+				}
+			}
+			else
+			{
+				transport.SetConnectionData("127.0.0.1", 7777);
+			}
 			
 			NetworkManager.Singleton.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(password);
 			NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
@@ -240,6 +331,7 @@ namespace Bomberman
 				NetworkManager.Singleton.Shutdown();
 			}
 
+			s_hostPassword = "";
 			ClearLobbyPlayers();
 			ShowMenuPanel();
 		}
@@ -286,9 +378,9 @@ namespace Bomberman
 
 		private void ValidatePasswordAndApprove(string clientPassword, NetworkManager.ConnectionApprovalResponse response)
 		{
-			if (!string.IsNullOrEmpty(_hostPassword))
+			if (!string.IsNullOrEmpty(s_hostPassword))
 			{
-				if (clientPassword != _hostPassword)
+				if (clientPassword != s_hostPassword)
 				{
 					RejectConnection(response, REASON_WRONG_PASSWORD);
 					return;
@@ -426,7 +518,14 @@ namespace Bomberman
 		private void UpdateStatusText()
 		{
 			int count = _playerCount.Value;
-			_statusText.text = "Players: " + count;
+			if (IsServer && _useRelayToggle != null && _useRelayToggle.isOn && !string.IsNullOrEmpty(s_hostPassword))
+			{
+				_statusText.text = "Code: " + s_hostPassword + "  |  Players: " + count;
+			}
+			else
+			{
+				_statusText.text = "Players: " + count;
+			}
 		}
 
 		private void UpdateStartButton()
